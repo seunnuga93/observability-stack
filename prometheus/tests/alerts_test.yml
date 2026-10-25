@@ -1,0 +1,54 @@
+# Unit tests for alert rules. Run with: promtool test rules prometheus/tests/alerts_test.yml
+rule_files:
+  - ../rules/recording.yml
+  - ../rules/alerts.yml
+
+evaluation_interval: 1m
+
+tests:
+  - name: target down fires after 2 minutes
+    input_series:
+      - series: 'up{job="demo-app", instance="demo-app:8000"}'
+        values: "1 0 0 0 0"
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: TargetDown
+        exp_alerts: []
+      - eval_time: 4m
+        alertname: TargetDown
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              job: demo-app
+              instance: demo-app:8000
+            exp_annotations:
+              summary: "demo-app target demo-app:8000 is down"
+              description: "Prometheus has failed to scrape demo-app:8000 for 2 minutes."
+
+  - name: high error rate fires when 10% of requests fail
+    input_series:
+      - series: 'http_requests_total{job="demo-app", status="200"}'
+        values: "0+90x20"
+      - series: 'http_requests_total{job="demo-app", status="500"}'
+        values: "0+10x20"
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: HighErrorRate
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              job: demo-app
+            exp_annotations:
+              summary: "demo-app error rate above 5%"
+              description: "Error ratio is 10% over the last 5 minutes."
+
+  - name: error rate under threshold stays quiet
+    input_series:
+      - series: 'http_requests_total{job="demo-app", status="200"}'
+        values: "0+99x20"
+      - series: 'http_requests_total{job="demo-app", status="500"}'
+        values: "0+1x20"
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: HighErrorRate
+        exp_alerts: []

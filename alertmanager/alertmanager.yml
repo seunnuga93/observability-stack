@@ -1,0 +1,27 @@
+route:
+  receiver: default
+  group_by: [alertname, job]
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+  routes:
+    - matchers: [severity="critical"]
+      receiver: critical
+      repeat_interval: 1h
+
+receivers:
+  # Wire these to Slack, PagerDuty, email, etc. A webhook keeps the demo self-contained.
+  - name: default
+    webhook_configs:
+      - url: http://demo-app:8000/alert-webhook
+        send_resolved: true
+  - name: critical
+    webhook_configs:
+      - url: http://demo-app:8000/alert-webhook
+        send_resolved: true
+
+inhibit_rules:
+  # Don't page on high latency/error rate when the whole target is already down.
+  - source_matchers: [alertname="TargetDown"]
+    target_matchers: [severity="warning"]
+    equal: [job]
